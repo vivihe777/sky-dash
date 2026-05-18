@@ -1,0 +1,21 @@
+{
+  "version": "2.0",
+  "envId": "{{YOUR_ENV_ID}}",
+  "framework": {
+    "name": "static",
+    "hooks": {}
+  },
+  "hosting": {
+    "type": "static",
+    "outputPath": "./",
+    "cloudPath": "/",
+    "ignore": [
+      "cloudbaserc.json",
+      "vercel.json",
+      "README.md",
+      "CHANGELOG.md",
+      "*.zip",
+      "*.md"
+    ]
+  }
+}
