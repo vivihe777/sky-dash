@@ -1,5 +1,19 @@
 # Changelog
 
+## v5.0 — 2026-05-18
+### Added
+- 2 new skins: Deep Sea Sprite (深海精灵, bioluminescent fish) + Fire Phoenix (烈焰凤凰, flame wings)
+- Total 5 skins, all free/unlocked
+
+### Fixed
+- Skin card bird "穿模" (overflow) — canvas clip() constrains bird to card boundary
+
+## v4.0 — 2026-05-18
+### Changed
+- Continuous gameplay: no between-level pause screens
+- Difficulty auto-increases every 5 pipes via non-blocking level-up banner
+- Removed levelComplete / win states; unified into single playing scene
+
 ## v3.0 — 2026-05-18
 ### Added
 - Bezier-curve bird drawing for all 3 skins (no more circle stacking)
