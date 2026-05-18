@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "envId": "{{YOUR_ENV_ID}}",
+  "envId": "viviproject-d8gumd7i0f3d583d0",
   "framework": {
     "name": "static",
     "hooks": {}
