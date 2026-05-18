@@ -33,6 +33,32 @@ const DIFF=[
 const getLv=s=>Math.min(10,Math.floor(s/5)+1);
 const D=s=>DIFF[getLv(s)-1];
 const GND=64,BR=19,PW=62,PCAP=11;
+const VERSION='v0.13';
+// ── Harness: feature flags + auto-disable on error ───
+const HARNESS={
+  versionDisplay:true,pipeThemes:true,gateEffect:true,weatherSystem:true,
+  _err:{},
+  run(k,fn){if(!this[k])return;try{fn();}catch(e){this._err[k]=e;this[k]=false;console.warn('[HARNESS]',k,'disabled:',e);}}
+};
+// ── Pipe themes (one per 2-level bracket) ────────────
+const PIPE_THEMES=[
+  // 0 Lv1-2 草绿
+  {b0:'#163d12',b1:'#2d7a20',b2:'#35922a',b3:'#236018',b4:'#102c0c',
+   c0:'#122e0f',c1:'#287020',c2:'#30882a',glow:null},
+  // 1 Lv3-4 石墙
+  {b0:'#2a2a2a',b1:'#555',b2:'#707070',b3:'#3a3a3a',b4:'#1a1a1a',
+   c0:'#222',c1:'#484848',c2:'#606060',glow:null},
+  // 2 Lv5-6 水晶蓝
+  {b0:'#0d2a4a',b1:'#1565C0',b2:'#42A5F5',b3:'#0a3060',b4:'#071a36',
+   c0:'#0a2040',c1:'#1255a0',c2:'#3090e0',glow:'rgba(66,165,245,.18)'},
+  // 3 Lv7-8 熔岩
+  {b0:'#3a0000',b1:'#b71c1c',b2:'#ef5350',b3:'#7f0000',b4:'#220000',
+   c0:'#2a0000',c1:'#a01010',c2:'#cc3030',glow:'rgba(255,80,0,.22)'},
+  // 4 Lv9-10 虚空紫
+  {b0:'#1a0030',b1:'#6a1b9a',b2:'#ab47bc',b3:'#3a006a',b4:'#0d0018',
+   c0:'#150025',c1:'#580090',c2:'#9000c0',glow:'rgba(170,0,255,.25)'},
+];
+function getPipeTheme(lv){return PIPE_THEMES[Math.min(4,Math.floor((lv-1)/2))];}
 
 // ── Mountain profiles ────────────────────────────────
 function genMtn(seed,n){return Array.from({length:n+1},(_,i)=>{const x=i/n;return Math.sin(x*4.1+seed)*.28+Math.sin(x*7.3+seed*1.7)*.15+Math.sin(x*2.2+seed*.5)*.38+Math.sin(x*11+seed*2.3)*.07;});}
@@ -265,6 +291,7 @@ function startGame(){
   G.hourglassActive=false;G.hourglassTimer=0;G.speedMult=1.0;
   pipes=[];coinList=[];parts=[];trailParticles=[];
   pipeT=0;windF=0;windT=0;windTmr=0;
+  WX.type=0;WX.timer=0;WX.changeCooldown=0;WX.rain=[];WX.lightningBolt=null;
   banner={show:0,lv:1,timer:0,alpha:0};
   resetBird();readyT=0;G.scene='ready';
 }
@@ -319,6 +346,7 @@ function tickPlay(dt){
   pipes.forEach(p=>{
     p.x-=d.spd*dt*sm;
     if(p.mvA){p.ph+=p.mvS*dt*sm;p.gapY+=Math.sin(p.ph)*p.mvS*dt*20;p.gapY=clamp(p.gapY,p.gap/2+32,H-GND-p.gap/2-32);}
+    if(p.gate){p.gatePhase+=dt*1.4*sm;p.gapMod=Math.sin(p.gatePhase)*p.gateAmp*-1;}
     if(!p.ok&&p.x<bird.x-BR){p.ok=true;G.score++;checkLvUp(G.score);burst(bird.x+22,bird.y,'#FFD740',6,72);}
     if(bird.alive&&pipeHit(bird,p)){
       if(G.shieldActive){G.shieldActive=false;G.flash=.18;G.flashC='#42A5F5';bird.vy=-180;G.shake=.2;G.shakeM=6;}
@@ -337,6 +365,7 @@ function tickPlay(dt){
   coinList=coinList.filter(c=>c.x>-60&&!c.done);
   tickParts(dt);
   tickTrailParticles(dt);
+  HARNESS.run('weatherSystem',()=>tickWeather(dt));
   if(!bird.alive&&bird.y>H+90){
     const isNew=updateBest(G.score,G.curLv);
     G.isNewRecord=isNew;
@@ -348,16 +377,21 @@ function killBird(){
   burst(bird.x,bird.y,SK[G.skin].accent,22,165);burst(bird.x,bird.y,'#fff',8,110);
 }
 function spawnPipe(){
-  const d=D(G.score);
+  const d=D(G.score);const lv=G.curLv;
   const gapY=R(d.gap/2+50,H-GND-d.gap/2-50);
   const mv=d.mv?R(30,70):0;
-  pipes.push({x:W+PW/2+14,gapY,gap:d.gap,mvA:mv,ph:R(0,6.28),mvS:R(.7,1.4),ok:false});
+  // gate: Lv7+ pipes oscillate their gap open/close
+  const gate=HARNESS.gateEffect&&lv>=7;
+  const gateAmp=gate?R(18,32):0;
+  pipes.push({x:W+PW/2+14,gapY,gap:d.gap,mvA:mv,ph:R(0,6.28),mvS:R(.7,1.4),ok:false,
+              gate,gatePhase:R(0,6.28),gateAmp,gapMod:0});
   if(R(0,1)<.62)coinList.push({x:W+PW/2+PW+R(18,55),y:gapY+R(-d.gap*.25,d.gap*.25),r:11,bob:R(0,6.28),done:false});
 }
 function pipeHit(b,p){
   const br=BR*.76,pw=PW/2+PCAP;
   if(b.x+br<p.x-pw||b.x-br>p.x+pw)return false;
-  return b.y-br<p.gapY-p.gap/2||b.y+br>p.gapY+p.gap/2;
+  const effGap=(p.gap+(p.gapMod||0))/2;
+  return b.y-br<p.gapY-effGap||b.y+br>p.gapY+effGap;
 }
 
 // ── Trail particle system ────────────────────────────
@@ -387,6 +421,101 @@ function drawTrailParticles(){
 function burst(x,y,c,n,spd){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=R(spd*.3,spd);parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-R(0,42),l:1,dc:R(.7,1.5),r:R(2.5,6),c});}}
 function tickParts(dt){parts.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=185*dt;p.l-=p.dc*dt;});parts=parts.filter(p=>p.l>0);}
 function tickClouds(dt){const sp=G.scene==='playing'?D(G.score).spd:60;clouds.forEach(c=>{c.x-=c.spd*dt*(sp/150)*G.speedMult;if(c.x<-150){c.x=W+80;c.y=R(28,H*.5);}});}
+
+// ── Weather system ────────────────────────────────────
+// Types: 0=none 1=rain 2=lightning 3=tornado 4=thunderstorm
+const WX={
+  type:0,timer:0,changeCooldown:0,
+  rain:[],lightningFlash:0,lightningBolt:null,
+  tornado:{x:W*.7,y:H*.4,wobble:0,phase:0},
+  overlay:0
+};
+const WX_TYPES=['none','rain','lightning','tornado','thunderstorm'];
+function wxChoose(){
+  const t=Math.floor(R(1,5));// 1-4
+  WX.type=t;WX.timer=R(6,14);
+  if(t===1||t===4){// rain / thunderstorm — spawn drops
+    WX.rain=Array.from({length:t===4?80:45},()=>({x:R(0,W),y:R(-H,0),vy:R(420,620),vx:R(-30,30),l:R(8,18)}));
+  }
+  if(t===2||t===4)WX.lightningFlash=0;
+  if(t===3){WX.tornado.x=W+80;WX.tornado.y=R(H*.25,H*.6);}
+}
+function tickWeather(dt){
+  if(!HARNESS.weatherSystem)return;
+  if(G.score<20){WX.type=0;return;}
+  WX.changeCooldown-=dt;
+  if(WX.type===0&&WX.changeCooldown<=0){wxChoose();WX.changeCooldown=R(8,18);}
+  if(WX.type===0)return;
+  WX.timer-=dt;
+  if(WX.timer<=0){WX.type=0;WX.changeCooldown=R(6,12);return;}
+  // rain / thunderstorm drops
+  if(WX.type===1||WX.type===4){
+    WX.rain.forEach(d=>{d.x+=d.vx*dt;d.y+=d.vy*dt;if(d.y>H){d.y=-R(10,60);d.x=R(0,W);}});
+  }
+  // lightning bolt timer
+  if(WX.type===2||WX.type===4){
+    WX.lightningFlash-=dt;
+    if(WX.lightningFlash<=0){
+      WX.lightningFlash=R(1.5,4);
+      WX.lightningBolt={x:R(30,W-30),segs:Array.from({length:8},(_,i)=>R(-22,22))};
+      G.flash=.12;G.flashC='rgba(220,240,255,.9)';
+    }else if(WX.lightningFlash<0.08)WX.lightningBolt=null;
+  }
+  // tornado drift
+  if(WX.type===3){
+    WX.tornado.x-=D(G.score).spd*.18*dt*G.speedMult;
+    WX.tornado.phase+=dt*2.4;
+    WX.tornado.wobble=Math.sin(WX.tornado.phase)*18;
+    if(WX.tornado.x<-80){WX.type=0;WX.changeCooldown=R(6,12);}
+    // tornado danger zone — warn only (no kill, just shockwave push)
+    if(bird.alive){
+      const dx=bird.x-(WX.tornado.x+WX.tornado.wobble),dy=bird.y-WX.tornado.y;
+      if(dx*dx+dy*dy<52*52){bird.vy-=280*dt;bird.vx=(bird.vx||0)+R(-60,60)*dt*8;}
+    }
+  }
+}
+function drawWeather(){
+  if(!HARNESS.weatherSystem||WX.type===0)return;
+  ctx.save();
+  // rain
+  if(WX.type===1||WX.type===4){
+    ctx.strokeStyle='rgba(174,214,241,.55)';ctx.lineWidth=1.2;
+    WX.rain.forEach(d=>{ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(d.x+d.vx*.04,d.y+d.l);ctx.stroke();});
+  }
+  // thunderstorm extra dark overlay
+  if(WX.type===4){ctx.fillStyle='rgba(10,20,40,.22)';ctx.fillRect(0,0,W,H);}
+  // lightning bolt
+  if((WX.type===2||WX.type===4)&&WX.lightningBolt){
+    const {x,segs}=WX.lightningBolt;const segH=H/segs.length;
+    ctx.save();ctx.shadowColor='#E0E0FF';ctx.shadowBlur=18;
+    ctx.strokeStyle='rgba(220,240,255,.92)';ctx.lineWidth=2.2;
+    ctx.beginPath();let cx2=x,cy2=0;ctx.moveTo(cx2,cy2);
+    segs.forEach((ox,i)=>{cx2+=ox;cy2+=(i+1)*segH*.7;ctx.lineTo(cx2,cy2);});
+    ctx.stroke();ctx.restore();
+  }
+  // tornado funnel
+  if(WX.type===3){
+    const {x:tx2,y:ty,wobble,phase}=WX.tornado;const fx=tx2+wobble;
+    ctx.save();ctx.globalAlpha=.7;
+    for(let i=0;i<9;i++){
+      const frac=i/9,w=18+frac*48,fy=ty-60+i*14;
+      const spin=Math.sin(phase+i*.7)*w*.55;
+      ctx.fillStyle=`rgba(160,100,220,${.08+frac*.12})`;
+      ctx.beginPath();ctx.ellipse(fx+spin,fy,w/2,7,0,0,6.28);ctx.fill();
+    }
+    // outer swirl lines
+    ctx.strokeStyle='rgba(200,140,255,.25)';ctx.lineWidth=1;
+    for(let i=0;i<5;i++){
+      const angle=phase*1.3+i*1.26,r=24+i*10;
+      ctx.beginPath();ctx.arc(fx,ty,r,angle,angle+3.8);ctx.stroke();
+    }
+    ctx.restore();
+    // label
+    ctx.globalAlpha=.72;ctx.font='bold 11px system-ui';ctx.fillStyle='#d580ff';ctx.textAlign='center';
+    ctx.fillText('⚠ 龙卷风',fx,ty-68);ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
 
 // ═══════════════════════════════════════════════════════
 //  DRAW ENGINE
@@ -425,12 +554,41 @@ function dGround(){
   ctx.fillStyle='#3a7a2a';for(let x=0;x<W;x+=14){const h=4+Math.sin(x*.3+uiT*.5)*2;ctx.fillRect(x,gy-h+1,2,h);}
 }
 function dPipe(p){
-  const topH=p.gapY-p.gap/2,botY=p.gapY+p.gap/2,botH=H-GND-botY;
-  function body(x,y,w,h){if(h<=0)return;const g=ctx.createLinearGradient(x-w/2,0,x+w/2,0);g.addColorStop(0,'#163d12');g.addColorStop(.28,'#2d7a20');g.addColorStop(.55,'#35922a');g.addColorStop(.82,'#236018');g.addColorStop(1,'#102c0c');ctx.fillStyle=g;ctx.fillRect(x-w/2,y,w,h);ctx.fillStyle='rgba(255,255,255,.09)';ctx.fillRect(x-w/2+5,y,7,h);ctx.fillStyle='rgba(0,0,0,.15)';ctx.fillRect(x+w/2-8,y,8,h);}
-  function cap(x,y,w,h){if(h<=0)return;const g=ctx.createLinearGradient(x-w/2,0,x+w/2,0);g.addColorStop(0,'#122e0f');g.addColorStop(.35,'#287020');g.addColorStop(.65,'#30882a');g.addColorStop(1,'#122e0f');ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(x-w/2,y,w,h,3);ctx.fill();ctx.fillStyle='rgba(255,255,255,.1)';ctx.beginPath();ctx.roundRect(x-w/2+4,y+2,w-8,h*.45,2);ctx.fill();ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x-w/2,y,w,h,3);ctx.stroke();}
+  let th;
+  HARNESS.run('pipeThemes',()=>{th=getPipeTheme(G.curLv);});
+  if(!th)th=PIPE_THEMES[0]; // fallback green
+  const effGap=(p.gap+(p.gapMod||0))/2;
+  const topH=p.gapY-effGap,botY=p.gapY+effGap,botH=H-GND-botY;
+  function body(x,y,w,h){
+    if(h<=0)return;
+    const g=ctx.createLinearGradient(x-w/2,0,x+w/2,0);
+    g.addColorStop(0,th.b0);g.addColorStop(.28,th.b1);g.addColorStop(.55,th.b2);g.addColorStop(.82,th.b3);g.addColorStop(1,th.b4);
+    ctx.fillStyle=g;ctx.fillRect(x-w/2,y,w,h);
+    ctx.fillStyle='rgba(255,255,255,.09)';ctx.fillRect(x-w/2+5,y,7,h);
+    ctx.fillStyle='rgba(0,0,0,.15)';ctx.fillRect(x+w/2-8,y,8,h);
+  }
+  function cap(x,y,w,h){
+    if(h<=0)return;
+    const g=ctx.createLinearGradient(x-w/2,0,x+w/2,0);
+    g.addColorStop(0,th.c0);g.addColorStop(.35,th.c1);g.addColorStop(.65,th.c2);g.addColorStop(1,th.c0);
+    ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(x-w/2,y,w,h,3);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.1)';ctx.beginPath();ctx.roundRect(x-w/2+4,y+2,w-8,h*.45,2);ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x-w/2,y,w,h,3);ctx.stroke();
+  }
+  // glow aura for themed pipes
+  if(th.glow){ctx.save();ctx.shadowColor=th.glow;ctx.shadowBlur=18;}
   body(p.x,0,PW,topH);cap(p.x,topH-26,PW+PCAP*2,26);
   const bh=botH-26>0?botH-26:0;body(p.x,botY+26,PW,bh);cap(p.x,botY,PW+PCAP*2,26);
-  // hourglass tint on pipes
+  if(th.glow)ctx.restore();
+  // gate indicator: red edge lines when closing
+  if(p.gate&&p.gapMod<-8){
+    ctx.save();ctx.globalAlpha=Math.min(1,(-p.gapMod-8)/20)*.55;
+    ctx.strokeStyle='#ff3030';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(p.x-PW/2-PCAP-2,p.gapY-effGap+26);ctx.lineTo(p.x+PW/2+PCAP+2,p.gapY-effGap+26);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x-PW/2-PCAP-2,p.gapY+effGap);ctx.lineTo(p.x+PW/2+PCAP+2,p.gapY+effGap);ctx.stroke();
+    ctx.restore();
+  }
+  // hourglass tint
   if(G.hourglassActive){ctx.fillStyle='rgba(255,180,0,.06)';ctx.fillRect(p.x-PW/2-PCAP,0,PW+PCAP*2,H);}
 }
 function dCoin(c){
@@ -498,6 +656,7 @@ function dMenu(t){
   btn(W/2+62,452,110,44,'商 店','#B71C1C','#fff');
   btn(W/2,506,220,40,'排 行 榜','rgba(255,255,255,.1)','#ccc');
   if(Math.floor(uiT*2)%2===0)tx('点击 / 空格 开始',W/2,H-20,12,'rgba(150,200,255,.45)');
+  HARNESS.run('versionDisplay',()=>{ tx(VERSION,18,H-14,10,'rgba(255,255,255,.22)','400'); });
 }
 
 function dSkin(t){
@@ -635,6 +794,7 @@ function dPlay(t){
   if(Math.abs(windF)>18){ctx.globalAlpha=Math.min(1,Math.abs(windF)/90)*.7;tx('风 '+(windF>0?'↓':'↑'),W-42,72,13,'#90CAF9');ctx.globalAlpha=1;}
   // hourglass overlay tint
   if(G.hourglassActive){ctx.fillStyle='rgba(255,180,0,.05)';ctx.fillRect(0,0,W,H);}
+  HARNESS.run('weatherSystem',()=>drawWeather());
   pipes.forEach(dPipe);coinList.forEach(dCoin);
   drawTrailParticles();
   bird.trail.forEach((tr,i)=>{const a=Math.max(0,tr.l)*.16*(1-i/14);if(a>.01){ctx.globalAlpha=a;circ(tr.x,tr.y,BR*.5*(1-i/14),SK[G.skin].glow);ctx.globalAlpha=1;}});
