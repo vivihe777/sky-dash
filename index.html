@@ -494,8 +494,8 @@ function dMenu(t){
   ctx.font='700 14px system-ui';ctx.textAlign='center';ctx.fillStyle='#FFD740';ctx.fillText('🪙 '+( pd.coins||0),W/2,326);
   if(pd.bestScore>0){gCard(W/2-65,340,130,24,12,'rgba(255,255,255,.07)',null);tx('最高 '+pd.bestScore+' 分',W/2,356,13,'#FFD740','700');}
   btn(W/2,388,220,52,'开 始 游 戏','#1565C0','#fff');
-  btn(W/2,452,104,44,'装 扮','#6A1B9A','#fff');
-  btn(W/2+114,452,100,44,'商 店','#B71C1C','#fff');
+  btn(W/2-62,452,110,44,'装 扮','#6A1B9A','#fff');
+  btn(W/2+62,452,110,44,'商 店','#B71C1C','#fff');
   btn(W/2,506,220,40,'排 行 榜','rgba(255,255,255,.1)','#ccc');
   if(Math.floor(uiT*2)%2===0)tx('点击 / 空格 开始',W/2,H-20,12,'rgba(150,200,255,.45)');
 }
@@ -743,8 +743,8 @@ function tap(ex,ey){
   const cx=(ex-rect.left)/s,cy=(ey-rect.top)/s;
   if(G.scene==='menu'){
     if(H$(cx,cy,W/2,388,220,52)){G.skin=skPrev;startGame();}
-    else if(H$(cx,cy,W/2-57,452,104,44)){skPrev=G.skin;G.scene='skinSelect';}
-    else if(H$(cx,cy,W/2+57,452,100,44)){shopTab=0;G.scene='shop';}
+    else if(H$(cx,cy,W/2-62,452,110,44)){skPrev=G.skin;G.scene='skinSelect';}
+    else if(H$(cx,cy,W/2+62,452,110,44)){shopTab=0;G.scene='shop';}
     else if(H$(cx,cy,W/2,506,220,40)){G.scene='leaderboard';}
   }
   else if(G.scene==='skinSelect'){
