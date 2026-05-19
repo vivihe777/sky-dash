@@ -24,19 +24,27 @@ resize();addEventListener('resize',resize);
 
 // ── Difficulty ───────────────────────────────────────
 const DIFF=[
-  {spd:148,gap:196,ivl:2200,wind:0,mv:0},{spd:168,gap:182,ivl:2060,wind:0,mv:0},
-  {spd:188,gap:169,ivl:1920,wind:0,mv:0},{spd:208,gap:157,ivl:1800,wind:0,mv:0},
-  {spd:230,gap:146,ivl:1680,wind:1,mv:0},{spd:252,gap:135,ivl:1570,wind:0,mv:1},
-  {spd:272,gap:125,ivl:1460,wind:0,mv:1},{spd:295,gap:116,ivl:1360,wind:1,mv:1},
-  {spd:318,gap:107,ivl:1260,wind:1,mv:1},{spd:345,gap:99,ivl:1160,wind:1,mv:1},
+  // Lv 1-10: 原有节奏，轻微调整间距保留手感
+  {spd:148,gap:196,ivl:2200,wind:0,mv:0},{spd:163,gap:184,ivl:2080,wind:0,mv:0},
+  {spd:179,gap:173,ivl:1960,wind:0,mv:0},{spd:196,gap:163,ivl:1840,wind:0,mv:0},
+  {spd:214,gap:153,ivl:1720,wind:1,mv:0},{spd:233,gap:144,ivl:1610,wind:0,mv:1},
+  {spd:253,gap:135,ivl:1500,wind:0,mv:1},{spd:273,gap:127,ivl:1400,wind:1,mv:1},
+  {spd:295,gap:120,ivl:1300,wind:1,mv:1},{spd:318,gap:113,ivl:1210,wind:1,mv:1},
+  // Lv 11-20: 逐步加深，但每档变化更细腻
+  {spd:340,gap:107,ivl:1130,wind:1,mv:1},{spd:362,gap:101,ivl:1060,wind:1,mv:1},
+  {spd:385,gap:96,ivl:990,wind:1,mv:1}, {spd:408,gap:91,ivl:930,wind:1,mv:1},
+  {spd:430,gap:87,ivl:870,wind:1,mv:1}, {spd:453,gap:83,ivl:820,wind:1,mv:1},
+  {spd:476,gap:79,ivl:770,wind:1,mv:1}, {spd:500,gap:76,ivl:720,wind:1,mv:1},
+  {spd:524,gap:73,ivl:680,wind:1,mv:1}, {spd:550,gap:70,ivl:640,wind:1,mv:1},
 ];
-const getLv=s=>Math.min(10,Math.floor(s/5)+1);
+const getLv=s=>Math.min(20,Math.floor(s/5)+1);
 const D=s=>DIFF[getLv(s)-1];
 const GND=64,BR=19,PW=62,PCAP=11;
-const VERSION='v0.13';
+const VERSION='v0.2';
 // ── Harness: feature flags + auto-disable on error ───
 const HARNESS={
   versionDisplay:true,pipeThemes:true,gateEffect:true,weatherSystem:true,
+  growthSystem:true,birdShrink:true,gapExpander:true,coinMagnet:true,
   _err:{},
   run(k,fn){if(!this[k])return;try{fn();}catch(e){this._err[k]=e;this[k]=false;console.warn('[HARNESS]',k,'disabled:',e);}}
 };
@@ -58,7 +66,7 @@ const PIPE_THEMES=[
   {b0:'#1a0030',b1:'#6a1b9a',b2:'#ab47bc',b3:'#3a006a',b4:'#0d0018',
    c0:'#150025',c1:'#580090',c2:'#9000c0',glow:'rgba(170,0,255,.25)'},
 ];
-function getPipeTheme(lv){return PIPE_THEMES[Math.min(4,Math.floor((lv-1)/2))];}
+function getPipeTheme(lv){return PIPE_THEMES[Math.min(4,Math.floor((lv-1)/4))];}
 
 // ── Mountain profiles ────────────────────────────────
 function genMtn(seed,n){return Array.from({length:n+1},(_,i)=>{const x=i/n;return Math.sin(x*4.1+seed)*.28+Math.sin(x*7.3+seed*1.7)*.15+Math.sin(x*2.2+seed*.5)*.38+Math.sin(x*11+seed*2.3)*.07;});}
@@ -104,19 +112,41 @@ function hasItem(type,id){
 function useItem(id){const d=getPlayer();if((d.inventory.items[id]||0)>0){d.inventory.items[id]--;savePlayer(d);return true;}return false;}
 function updateBest(score,lv){const d=getPlayer();let changed=false;if(score>d.bestScore){d.bestScore=score;changed=true;}if(lv>d.bestLv)d.bestLv=lv;d.totalGames=(d.totalGames||0)+1;savePlayer(d);return changed;}
 
-// ── Shop items catalogue ─────────────────────────────
-const SHOP_ITEMS=[
-  {id:'shield',name:'防护护盾',desc:'吸收1次碰撞，自动触发',price:50,icon:'🛡',color:'#42A5F5',tag:'consumable'},
-  {id:'hourglass',name:'时光沙漏',desc:'速度减慢40%，持续15秒',price:80,icon:'⏳',color:'#FFB74D',tag:'consumable'},
-  {id:'magnet',name:'金币磁铁',desc:'自动吸附金币 (即将上线)',price:60,icon:'🧲',color:'#AB47BC',tag:'soon'},
-  {id:'revival',name:'复活羽毛',desc:'死亡后原地复活一次 (即将上线)',price:120,icon:'🪶',color:'#66BB6A',tag:'soon'},
+// ── Growth System catalogue ──────────────────────────
+// 4 skills × 3 tiers each; priced to encourage progression
+const GROWTH_SKILLS=[
+  {id:'shield',name:'守护护盾',icon:'🛡',color:'#42A5F5',
+   tiers:[
+     {t:1,label:'Lv.1',desc:'吸收1次碰撞',price:50, param:1},
+     {t:2,label:'Lv.2',desc:'吸收2次碰撞',price:130,param:2},
+     {t:3,label:'Lv.3',desc:'吸收3次碰撞',price:260,param:3},
+   ]},
+  {id:'shrink',name:'极速缩小',icon:'🔮',color:'#CE93D8',
+   tiers:[
+     {t:1,label:'Lv.1',desc:'缩小30%，持续10秒',price:80, param:10},
+     {t:2,label:'Lv.2',desc:'缩小30%，持续15秒',price:160,param:15},
+     {t:3,label:'Lv.3',desc:'缩小30%，持续20秒',price:280,param:20},
+   ]},
+  {id:'gap',name:'豁口扩展',icon:'↔️',color:'#80CBC4',
+   tiers:[
+     {t:1,label:'Lv.1',desc:'管道间距+40，持续8秒', price:70, param:8},
+     {t:2,label:'Lv.2',desc:'管道间距+40，持续14秒',price:140,param:14},
+     {t:3,label:'Lv.3',desc:'管道间距+40，持续20秒',price:240,param:20},
+   ]},
+  {id:'magnet',name:'金币磁场',icon:'🧲',color:'#FFB74D',
+   tiers:[
+     {t:1,label:'Lv.1',desc:'自动吸金币，12秒',price:60, param:12},
+     {t:2,label:'Lv.2',desc:'自动吸金币，20秒',price:120,param:20},
+     {t:3,label:'Lv.3',desc:'自动吸金币，30秒',price:200,param:30},
+   ]},
 ];
+// Effects with 50% price cut
 const SHOP_EFFECTS=[
   {id:0,name:'无特效',desc:'保持原味',price:0,color:'#9E9E9E'},
-  {id:1,name:'烈焰尾迹',desc:'橙红火焰粒子',price:200,color:'#FF6D00'},
-  {id:2,name:'极光尾迹',desc:'彩虹粒子流',price:300,color:'#00E5FF'},
-  {id:3,name:'闪电尾迹',desc:'蓝白电弧',price:350,color:'#E0E0FF'},
-  {id:4,name:'星尘尾迹',desc:'白色星点消散',price:250,color:'#FFF9C4'},
+  {id:1,name:'烈焰尾迹',desc:'橙红火焰粒子',price:100,color:'#FF6D00'},
+  {id:2,name:'极光尾迹',desc:'彩虹粒子流',price:150,color:'#00E5FF'},
+  {id:3,name:'闪电尾迹',desc:'蓝白电弧',price:175,color:'#E0E0FF'},
+  {id:4,name:'星尘尾迹',desc:'白色星点消散',price:125,color:'#FFF9C4'},
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -195,8 +225,8 @@ const SK=[
   c.beginPath();c.moveTo(-14,-1);c.lineTo(-26,1);c.lineTo(-18,7);c.closePath();c.fillStyle='#FF6D00';c.fill();
   c.restore();
 }},
-// ── 5 星辰骑士 (Premium · 500 coins) ─────────────────
-{name:'星辰骑士',desc:'银河战甲·星光护体',accent:'#CE93D8',glow:'rgba(180,100,255,.55)',price:500,
+// ── 5 星辰骑士 (Premium · 250 coins) ─────────────────
+{name:'星辰骑士',desc:'银河战甲·星光护体',accent:'#CE93D8',glow:'rgba(180,100,255,.55)',price:250,
  draw(x,y,wa,bl,t){
   const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(160,80,255,.65)';c.shadowBlur=30;
   // star particles orbiting
@@ -216,8 +246,8 @@ const SK=[
   c.save();c.translate(-3,-24);c.strokeStyle='rgba(200,150,255,.8)';c.lineWidth=2;c.beginPath();c.moveTo(0,0);c.lineTo(-3,-12+Math.sin(t*3)*.5);c.stroke();c.shadowColor='#CE93D8';c.shadowBlur=8;c.fillStyle='#E1BEE7';c.beginPath();c.arc(-3,-13,3,0,6.28);c.fill();c.restore();
   c.restore();
 }},
-// ── 6 电磁风暴 (Premium · 800 coins) ─────────────────
-{name:'电磁风暴',desc:'混沌电弧·不灭之核',accent:'#FFFF00',glow:'rgba(255,255,0,.5)',price:800,
+// ── 6 电磁风暴 (Premium · 400 coins) ─────────────────
+{name:'电磁风暴',desc:'混沌电弧·不灭之核',accent:'#FFFF00',glow:'rgba(255,255,0,.5)',price:400,
  draw(x,y,wa,bl,t){
   const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(200,200,0,.7)';c.shadowBlur=32;
   // electric field
@@ -248,22 +278,30 @@ const SK=[
 // ═══════════════════════════════════════════════════════
 let PL=getPlayer(); // player data
 let G={
-  scene:'menu',      // menu|skinSelect|shop|ready|playing|gameOver|leaderboard
+  scene:'menu',      // menu|skinSelect|growth|ready|playing|gameOver|leaderboard
   skin:PL.equip.skin||0,
   effect:PL.equip.effect||0,
   score:0,coins:0,curLv:1,
   flash:0,flashC:'#fff',shake:0,shakeM:0,
-  // item active states
-  shieldActive:false,
-  hourglassActive:false,hourglassTimer:0,
-  // pre-game equipped consumables
-  equippedShield:false,
-  equippedHourglass:false,
-  // slowdown multiplier (1.0 = normal, 0.6 = hourglass)
+  // shield: hits remaining (0=none, 1/2/3)
+  shieldHits:0,
+  // shrink
+  shrinkActive:false,shrinkTimer:0,
+  // gap expander
+  gapActive:false,gapTimer:0,
+  // coin magnet
+  magnetActive:false,magnetTimer:0,
+  // pre-game equipped consumables (set by loadEquippedItems)
+  equippedShieldHits:0,
+  equippedShrinkDur:0,
+  equippedGapDur:0,
+  equippedMagnetDur:0,
   speedMult:1.0,
+  isNewRecord:false,
 };
 let banner={show:0,lv:0,timer:0,alpha:0};
-let shopTab=0; // 0=items 1=effects 2=skins
+let growthTab=0; // 0=skills 1=effects 2=skins
+let shopTab=0;   // alias kept for compatibility
 let skPrev=0,skBob=0,goAnim=0,uiT=0;
 
 function checkLvUp(s){
@@ -282,13 +320,17 @@ function initWorld(){
 }
 function mkCloud(){return{x:R(-80,W+80),y:R(28,H*.5),sc:R(.5,1.3),spd:R(14,48),al:R(.28,.75)};}
 function resetBird(){
-  bird={x:100,y:H/2-38,vy:0,ang:0,wa:0,wd:1,alive:true,blink:0,blinkT:3,trail:[]};
+  bird={x:100,y:H/2-38,vy:0,ang:0,wa:0,wd:1,alive:true,blink:0,blinkT:3,trail:[],invincible:0};
 }
 function startGame(){
   PL=getPlayer();
   G.score=0;G.coins=0;G.curLv=1;
-  G.shieldActive=G.equippedShield;
-  G.hourglassActive=false;G.hourglassTimer=0;G.speedMult=1.0;
+  G.shieldHits=G.equippedShieldHits||0;
+  // shrink / gap / magnet: loaded from equipped items
+  G.shrinkActive=false;G.shrinkTimer=0;
+  G.gapActive=false;G.gapTimer=0;
+  G.magnetActive=false;G.magnetTimer=0;
+  G.speedMult=1.0;
   pipes=[];coinList=[];parts=[];trailParticles=[];
   pipeT=0;windF=0;windT=0;windTmr=0;
   WX.type=0;WX.timer=0;WX.changeCooldown=0;WX.rain=[];WX.lightningBolt=null;
@@ -322,8 +364,10 @@ function tickPlay(dt){
   const sm=G.speedMult; // slowdown multiplier
   const d=D(G.score);
   mtnOff+=d.spd*.012*dt*sm;
-  // hourglass timer
-  if(G.hourglassActive){G.hourglassTimer-=dt;if(G.hourglassTimer<=0){G.hourglassActive=false;G.speedMult=1.0;}}
+  // active skill timers
+  if(G.shrinkActive){G.shrinkTimer-=dt;if(G.shrinkTimer<=0)G.shrinkActive=false;}
+  if(G.gapActive){G.gapTimer-=dt;if(G.gapTimer<=0)G.gapActive=false;}
+  if(G.magnetActive){G.magnetTimer-=dt;if(G.magnetTimer<=0)G.magnetActive=false;}
   if(d.wind){windTmr-=dt;if(windTmr<=0){windT=R(-100,100);windTmr=R(1.8,4.5);}windF+=(windT-windF)*dt*1.25*sm;}
   else{windF*=(1-dt*3);}
   if(bird.alive){
@@ -332,14 +376,18 @@ function tickPlay(dt){
     bird.y+=bird.vy*dt*sm;bird.ang=clamp(bird.vy/700*1.3,-.48,1.45);
     bird.wa+=bird.wd*7*dt;if(Math.abs(bird.wa)>.5)bird.wd*=-1;
     bird.blinkT-=dt;if(bird.blinkT<0){bird.blink=bird.blink?.04:.13;bird.blinkT=bird.blink?.13:R(2,5);}
+    if(bird.invincible>0)bird.invincible-=dt;
     bird.trail.unshift({x:bird.x,y:bird.y,l:1});
     if(bird.trail.length>14)bird.trail.pop();
     bird.trail.forEach(tr=>tr.l-=dt*4.5);
     // spawn trail particles
     if(G.effect>0&&Math.random()<.65)spawnTrailParticle(bird.x,bird.y,G.effect);
     if(bird.y+BR>H-GND||bird.y-BR<0){
-      if(G.shieldActive){G.shieldActive=false;G.flash=.18;G.flashC='#42A5F5';bird.vy=-260;}
-      else killBird();
+      if(G.shieldHits>0){
+        G.shieldHits--;bird.invincible=0.55;
+        G.flash=.18;G.flashC='#42A5F5';bird.vy=-260;
+        burst(bird.x,bird.y,'#42A5F5',10,120);
+      }else killBird();
     }
   }else{bird.vy+=1900*dt;bird.y+=bird.vy*dt;}
   pipeT-=dt;if(pipeT<=0){spawnPipe();pipeT=d.ivl/1000/sm;}
@@ -348,15 +396,23 @@ function tickPlay(dt){
     if(p.mvA){p.ph+=p.mvS*dt*sm;p.gapY+=Math.sin(p.ph)*p.mvS*dt*20;p.gapY=clamp(p.gapY,p.gap/2+32,H-GND-p.gap/2-32);}
     if(p.gate){p.gatePhase+=dt*1.4*sm;p.gapMod=Math.sin(p.gatePhase)*p.gateAmp*-1;}
     if(!p.ok&&p.x<bird.x-BR){p.ok=true;G.score++;checkLvUp(G.score);burst(bird.x+22,bird.y,'#FFD740',6,72);}
-    if(bird.alive&&pipeHit(bird,p)){
-      if(G.shieldActive){G.shieldActive=false;G.flash=.18;G.flashC='#42A5F5';bird.vy=-180;G.shake=.2;G.shakeM=6;}
-      else{G.shake=.38;G.shakeM=13;G.flash=.22;G.flashC='#ff3030';killBird();}
+    if(bird.alive&&bird.invincible<=0&&pipeHit(bird,p)){
+      if(G.shieldHits>0){
+        G.shieldHits--;bird.invincible=0.55;
+        G.flash=.18;G.flashC='#42A5F5';bird.vy=-180;G.shake=.2;G.shakeM=6;
+        burst(bird.x,bird.y,'#42A5F5',10,120);
+      }else{G.shake=.38;G.shakeM=13;G.flash=.22;G.flashC='#ff3030';killBird();}
     }
   });
   pipes=pipes.filter(p=>p.x>-PW*2);
   coinList.forEach(c=>{
     if(!c.done){c.x-=d.spd*dt*sm;c.bob+=dt*3;
-      const attracted=G.effect===5;// magnet reserved
+      // coin magnet: attract toward bird when active
+      if(G.magnetActive&&bird.alive){
+        const dx=bird.x-c.x,dy=bird.y-(c.y+Math.sin(c.bob)*5);
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<160){c.x+=dx/dist*220*dt;c.y+=dy/dist*220*dt;}
+      }
       if(bird.alive&&d2(bird.x,bird.y,c.x,c.y+Math.sin(c.bob)*5)<(BR+c.r)**2){
         c.done=true;G.coins++;addCoins(1);
         burst(c.x,c.y,'#FFD740',8,100);G.flash=.06;G.flashC='#FFD740';}
@@ -388,9 +444,11 @@ function spawnPipe(){
   if(R(0,1)<.62)coinList.push({x:W+PW/2+PW+R(18,55),y:gapY+R(-d.gap*.25,d.gap*.25),r:11,bob:R(0,6.28),done:false});
 }
 function pipeHit(b,p){
-  const br=BR*.76,pw=PW/2+PCAP;
+  const shrinkFactor=HARNESS.birdShrink&&G.shrinkActive?0.7:1.0;
+  const br=BR*.76*shrinkFactor,pw=PW/2+PCAP;
   if(b.x+br<p.x-pw||b.x-br>p.x+pw)return false;
-  const effGap=(p.gap+(p.gapMod||0))/2;
+  const gapBonus=HARNESS.gapExpander&&G.gapActive?40:0;
+  const effGap=(p.gap+(p.gapMod||0)+gapBonus)/2;
   return b.y-br<p.gapY-effGap||b.y+br>p.gapY+effGap;
 }
 
@@ -493,26 +551,45 @@ function drawWeather(){
     segs.forEach((ox,i)=>{cx2+=ox;cy2+=(i+1)*segH*.7;ctx.lineTo(cx2,cy2);});
     ctx.stroke();ctx.restore();
   }
-  // tornado funnel
+  // tornado funnel — realistic gray-brown funnel cloud
   if(WX.type===3){
     const {x:tx2,y:ty,wobble,phase}=WX.tornado;const fx=tx2+wobble;
-    ctx.save();ctx.globalAlpha=.7;
-    for(let i=0;i<9;i++){
-      const frac=i/9,w=18+frac*48,fy=ty-60+i*14;
-      const spin=Math.sin(phase+i*.7)*w*.55;
-      ctx.fillStyle=`rgba(160,100,220,${.08+frac*.12})`;
-      ctx.beginPath();ctx.ellipse(fx+spin,fy,w/2,7,0,0,6.28);ctx.fill();
+    ctx.save();
+    // dark storm cloud at top
+    ctx.globalAlpha=.82;
+    const cg=ctx.createRadialGradient(fx,ty-80,10,fx,ty-80,75);
+    cg.addColorStop(0,'rgba(55,50,48,.95)');cg.addColorStop(.7,'rgba(40,38,36,.7)');cg.addColorStop(1,'rgba(30,28,26,0)');
+    ctx.fillStyle=cg;ctx.beginPath();ctx.ellipse(fx,ty-72,80,38,0,0,6.28);ctx.fill();
+    // funnel body — tapers from wide (top) to narrow (bottom)
+    const segments=12;
+    for(let i=0;i<segments;i++){
+      const frac=i/segments;
+      const w=Math.max(4,52*(1-frac*frac));// wide top, narrow bottom
+      const fy=ty-55+i*13;
+      const spin=Math.sin(phase*1.8+i*.6)*w*.45;
+      const alpha=0.55+frac*.2;
+      // alternating light/dark bands for spiral effect
+      const band=(Math.sin(phase*3+i*1.1)*.5+.5);
+      const r=Math.floor(65+band*25),g=Math.floor(58+band*20),b=Math.floor(52+band*18);
+      ctx.fillStyle=`rgba(${r},${g},${b},${alpha})`;
+      ctx.beginPath();ctx.ellipse(fx+spin,fy,w/2+1,5,0,0,6.28);ctx.fill();
+      // inner darker core
+      ctx.fillStyle=`rgba(30,26,24,${alpha*.6})`;
+      ctx.beginPath();ctx.ellipse(fx+spin,fy,w/4,3,0,0,6.28);ctx.fill();
     }
-    // outer swirl lines
-    ctx.strokeStyle='rgba(200,140,255,.25)';ctx.lineWidth=1;
-    for(let i=0;i<5;i++){
-      const angle=phase*1.3+i*1.26,r=24+i*10;
-      ctx.beginPath();ctx.arc(fx,ty,r,angle,angle+3.8);ctx.stroke();
+    // dust/debris swirl at base
+    for(let i=0;i<8;i++){
+      const a=phase*2+i*.785,r=R(12,28);
+      const dx=Math.cos(a)*r,dy=Math.sin(a)*r*.35;
+      const bfrac=i/8;
+      ctx.fillStyle=`rgba(80,65,50,${.3+bfrac*.2})`;
+      ctx.beginPath();ctx.arc(fx+dx,ty+85+dy,R(2,5),0,6.28);ctx.fill();
     }
     ctx.restore();
-    // label
-    ctx.globalAlpha=.72;ctx.font='bold 11px system-ui';ctx.fillStyle='#d580ff';ctx.textAlign='center';
-    ctx.fillText('⚠ 龙卷风',fx,ty-68);ctx.globalAlpha=1;
+    // warning label
+    ctx.save();ctx.globalAlpha=.8;ctx.font='bold 11px system-ui';
+    ctx.fillStyle='#e8d0a0';ctx.textAlign='center';ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=4;
+    ctx.fillText('⚠ 龙卷风',fx,ty-120);ctx.restore();
   }
   ctx.restore();
 }
@@ -524,7 +601,7 @@ function drawFrame(t){
   ctx.clearRect(0,0,W,H);
   if(G.scene==='menu')dMenu(t);
   else if(G.scene==='skinSelect')dSkin(t);
-  else if(G.scene==='shop')dShop(t);
+  else if(G.scene==='growth')dGrowth(t);
   else if(G.scene==='ready')dReady(t);
   else if(G.scene==='playing')dPlay(t);
   else if(G.scene==='gameOver')dGO(t);
@@ -588,8 +665,8 @@ function dPipe(p){
     ctx.beginPath();ctx.moveTo(p.x-PW/2-PCAP-2,p.gapY+effGap);ctx.lineTo(p.x+PW/2+PCAP+2,p.gapY+effGap);ctx.stroke();
     ctx.restore();
   }
-  // hourglass tint
-  if(G.hourglassActive){ctx.fillStyle='rgba(255,180,0,.06)';ctx.fillRect(p.x-PW/2-PCAP,0,PW+PCAP*2,H);}
+  // shrink tint on pipes when active
+  if(G.shrinkActive){ctx.fillStyle='rgba(200,100,255,.04)';ctx.fillRect(p.x-PW/2-PCAP,0,PW+PCAP*2,H);}
 }
 function dCoin(c){
   if(c.done)return;const dy=Math.sin(c.bob)*5,cy2=c.y+dy;
@@ -611,29 +688,69 @@ function dBanner(){
   tx(`✦ 难度升级  Level ${banner.lv} ✦`,W/2,by+bh/2+6,15,SK[G.skin].accent,'700');
   ctx.restore();
 }
-// Shield indicator (top-left arc)
+// Shield indicator (arc + hit count)
 function dShieldHUD(){
-  if(!G.shieldActive)return;
-  ctx.save();ctx.shadowColor='#42A5F5';ctx.shadowBlur=14;
-  ctx.strokeStyle='rgba(66,165,245,.7)';ctx.lineWidth=2.5;
+  if(!G.shieldHits)return;
+  const pulse=1+Math.sin(uiT*4)*.12;
+  ctx.save();ctx.shadowColor='#42A5F5';ctx.shadowBlur=14*pulse;
+  // arc brightness based on remaining hits
+  const alpha=0.4+G.shieldHits*.18;
+  ctx.strokeStyle=`rgba(66,165,245,${alpha})`;ctx.lineWidth=2+G.shieldHits*.5;
   ctx.beginPath();ctx.arc(bird.x,bird.y,BR+6,0,Math.PI*2);ctx.stroke();
+  // hit dots above bird
+  for(let i=0;i<G.shieldHits;i++){
+    ctx.fillStyle='rgba(66,165,245,.85)';
+    ctx.beginPath();ctx.arc(bird.x-6+(i*7),bird.y-BR-10,3,0,6.28);ctx.fill();
+  }
   ctx.restore();
 }
-// Hourglass bottom-right button
-function dHourglassBtn(){
-  if(!G.equippedHourglass&&!G.hourglassActive)return;
-  const bx=W-46,by=H-GND-58,br=22;
-  ctx.save();
-  ctx.fillStyle=G.hourglassActive?'rgba(255,180,0,.35)':'rgba(255,255,255,.12)';
-  ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.fill();
-  ctx.strokeStyle=G.hourglassActive?'#FFB74D':'rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.stroke();
-  // timer arc
-  if(G.hourglassActive){
-    const prog=G.hourglassTimer/15;ctx.strokeStyle='#FFD740';ctx.lineWidth=3;ctx.beginPath();ctx.arc(bx,by,br,-Math.PI/2,-Math.PI/2+Math.PI*2*prog);ctx.stroke();
+// Skill buttons (right edge, stacked vertically)
+function dSkillBtns(){
+  // Shrink button
+  if(G.equippedShrinkDur>0||G.shrinkActive){
+    const bx=W-46,by=H-GND-58,br=22;
+    ctx.save();
+    ctx.fillStyle=G.shrinkActive?'rgba(200,100,255,.35)':'rgba(255,255,255,.12)';
+    ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.fill();
+    ctx.strokeStyle=G.shrinkActive?'#CE93D8':'rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.stroke();
+    if(G.shrinkActive){
+      const prog=G.shrinkTimer/G.equippedShrinkDur;
+      ctx.strokeStyle='#CE93D8';ctx.lineWidth=3;ctx.beginPath();ctx.arc(bx,by,br,-Math.PI/2,-Math.PI/2+Math.PI*2*prog);ctx.stroke();
+    }
+    ctx.font='18px system-ui';ctx.textAlign='center';ctx.fillText('🔮',bx,by+6);
+    if(!G.shrinkActive&&G.equippedShrinkDur>0){ctx.fillStyle='rgba(0,0,0,.5)';ctx.font='bold 9px system-ui';ctx.fillText('缩小',bx,by+18);}
+    ctx.restore();
   }
-  ctx.font='20px system-ui';ctx.textAlign='center';ctx.fillText('⏳',bx,by+7);
-  if(!G.hourglassActive&&G.equippedHourglass){ctx.fillStyle='rgba(0,0,0,.5)';ctx.font='bold 9px system-ui';ctx.fillText('点击',bx,by+18);}
-  ctx.restore();
+  // Gap expander button
+  if(G.equippedGapDur>0||G.gapActive){
+    const bx=W-46,by=H-GND-112,br=20;
+    ctx.save();
+    ctx.fillStyle=G.gapActive?'rgba(128,203,196,.35)':'rgba(255,255,255,.10)';
+    ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.fill();
+    ctx.strokeStyle=G.gapActive?'#80CBC4':'rgba(255,255,255,.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.stroke();
+    if(G.gapActive){
+      const prog=G.gapTimer/G.equippedGapDur;
+      ctx.strokeStyle='#80CBC4';ctx.lineWidth=3;ctx.beginPath();ctx.arc(bx,by,br,-Math.PI/2,-Math.PI/2+Math.PI*2*prog);ctx.stroke();
+    }
+    ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText('↔️',bx,by+5);
+    if(!G.gapActive&&G.equippedGapDur>0){ctx.fillStyle='rgba(0,0,0,.5)';ctx.font='bold 8px system-ui';ctx.fillText('扩展',bx,by+16);}
+    ctx.restore();
+  }
+  // Magnet button
+  if(G.equippedMagnetDur>0||G.magnetActive){
+    const bx=W-46,by=H-GND-160,br=20;
+    ctx.save();
+    ctx.fillStyle=G.magnetActive?'rgba(255,183,77,.35)':'rgba(255,255,255,.10)';
+    ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.fill();
+    ctx.strokeStyle=G.magnetActive?'#FFB74D':'rgba(255,255,255,.35)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(bx,by,br,0,6.28);ctx.stroke();
+    if(G.magnetActive){
+      const prog=G.magnetTimer/G.equippedMagnetDur;
+      ctx.strokeStyle='#FFB74D';ctx.lineWidth=3;ctx.beginPath();ctx.arc(bx,by,br,-Math.PI/2,-Math.PI/2+Math.PI*2*prog);ctx.stroke();
+    }
+    ctx.font='16px system-ui';ctx.textAlign='center';ctx.fillText('🧲',bx,by+5);
+    if(!G.magnetActive&&G.equippedMagnetDur>0){ctx.fillStyle='rgba(0,0,0,.5)';ctx.font='bold 8px system-ui';ctx.fillText('磁场',bx,by+16);}
+    ctx.restore();
+  }
 }
 
 // ── SCENES ───────────────────────────────────────────
@@ -653,7 +770,7 @@ function dMenu(t){
   if(pd.bestScore>0){gCard(W/2-65,340,130,24,12,'rgba(255,255,255,.07)',null);tx('最高 '+pd.bestScore+' 分',W/2,356,13,'#FFD740','700');}
   btn(W/2,388,220,52,'开 始 游 戏','#1565C0','#fff');
   btn(W/2-62,452,110,44,'装 扮','#6A1B9A','#fff');
-  btn(W/2+62,452,110,44,'商 店','#B71C1C','#fff');
+  btn(W/2+62,452,110,44,'成 长','#1B5E20','#fff');
   btn(W/2,506,220,40,'排 行 榜','rgba(255,255,255,.1)','#ccc');
   if(Math.floor(uiT*2)%2===0)tx('点击 / 空格 开始',W/2,H-20,12,'rgba(150,200,255,.45)');
   HARNESS.run('versionDisplay',()=>{ tx(VERSION,18,H-14,10,'rgba(255,255,255,.22)','400'); });
@@ -698,61 +815,69 @@ function dSkin(t){
   tx('返回',W/2,H-20,13,'rgba(150,190,255,.6)');
 }
 
-function dShop(t){
+function dGrowth(t){
   dSky(1);dStars();dGround();
-  tx('商 店',W/2,46,30,'#fff','800');
+  tx('成 长 系 统',W/2,44,26,'#fff','800');
   const pd=getPlayer();
-  gCard(W/2-55,58,110,26,13,'rgba(0,0,0,.5)',null);
-  ctx.font='700 14px system-ui';ctx.textAlign='center';ctx.fillStyle='#FFD740';ctx.fillText('🪙 '+(pd.coins||0),W/2,74);
+  gCard(W/2-55,56,110,26,13,'rgba(0,0,0,.5)',null);
+  ctx.font='700 14px system-ui';ctx.textAlign='center';ctx.fillStyle='#FFD740';ctx.fillText('🪙 '+(pd.coins||0),W/2,72);
   // tabs
-  const tabs=['道具','特效','皮肤'];
+  const tabs=['技能','特效','皮肤'];
   tabs.forEach((lb,i)=>{
-    const tx2=W/2+(i-1)*115,active=shopTab===i;
-    gCard(tx2-44,90,88,30,15,active?'rgba(255,255,255,.18)':'rgba(255,255,255,.06)',active?'rgba(255,255,255,.4)':null);
-    ctx.font=`${active?'700':'400'} 14px system-ui`;ctx.textAlign='center';ctx.fillStyle=active?'#fff':'#aaa';ctx.fillText(lb,tx2,110);
+    const tx2=W/2+(i-1)*115,active=growthTab===i;
+    gCard(tx2-44,86,88,28,14,active?'rgba(255,255,255,.18)':'rgba(255,255,255,.06)',active?'rgba(255,255,255,.4)':null);
+    ctx.font=`${active?'700':'400'} 13px system-ui`;ctx.textAlign='center';ctx.fillStyle=active?'#fff':'#aaa';ctx.fillText(lb,tx2,105);
   });
-  const listY=134;
-  if(shopTab===0){// items
-    SHOP_ITEMS.forEach((item,i)=>{
-      const iy=listY+i*88,owned=(pd.inventory.items[item.id]||0);
-      const soon=item.tag==='soon';
-      gCard(16,iy,W-32,78,12,soon?'rgba(255,255,255,.04)':'rgba(255,255,255,.08)',soon?'rgba(255,255,255,.08)':null);
-      ctx.font='26px system-ui';ctx.textAlign='left';ctx.fillText(item.icon,32,iy+32);
-      ctx.font='700 15px system-ui';ctx.fillStyle=soon?'#666':'#fff';ctx.fillText(item.name,68,iy+26);
-      ctx.font='11px system-ui';ctx.fillStyle=soon?'#444':'rgba(180,200,220,.75)';ctx.fillText(item.desc,68,iy+44);
-      if(!soon){
-        ctx.font='700 13px system-ui';ctx.fillStyle='#FFD740';ctx.textAlign='right';ctx.fillText('🪙 '+item.price,W-22,iy+28);
-        ctx.font='12px system-ui';ctx.fillStyle='rgba(200,200,200,.6)';ctx.fillText('持有: '+owned,W-22,iy+46);
-        // buy btn
-        ctx.fillStyle='rgba(33,150,243,.22)';ctx.beginPath();ctx.roundRect(W-105,iy+52,88,20,10);ctx.fill();
-        ctx.font='700 11px system-ui';ctx.fillStyle='#90CAF9';ctx.textAlign='center';ctx.fillText('+ 购买',W-61,iy+65);
-      }else{
-        ctx.font='700 12px system-ui';ctx.fillStyle='#555';ctx.textAlign='right';ctx.fillText('即将上线',W-22,iy+46);
-      }
+  const listY=124;
+  if(growthTab===0){// skills
+    GROWTH_SKILLS.forEach((skill,si)=>{
+      const sy=listY+si*116;
+      gCard(14,sy,W-28,108,12,'rgba(255,255,255,.06)',null);
+      // skill icon + name
+      ctx.font='22px system-ui';ctx.textAlign='left';ctx.fillText(skill.icon,28,sy+28);
+      ctx.font='700 15px system-ui';ctx.fillStyle=skill.color;ctx.fillText(skill.name,58,sy+26);
+      // 3 tier buttons
+      skill.tiers.forEach((tier,ti)=>{
+        const tx3=48+ti*110,ty3=sy+48;
+        const itemId=`${skill.id}_t${tier.t}`;
+        const owned=(pd.inventory.items[itemId]||0);
+        const active=owned>0;
+        gCard(tx3-38,ty3,76,54,10,active?`${skill.color}22`:'rgba(255,255,255,.07)',active?skill.color:null);
+        ctx.font='700 11px system-ui';ctx.textAlign='center';ctx.fillStyle=active?skill.color:'#aaa';ctx.fillText(tier.label,tx3,ty3+14);
+        ctx.font='9px system-ui';ctx.fillStyle='rgba(200,220,220,.7)';ctx.fillText(tier.desc.slice(0,8),tx3,ty3+26);
+        if(active){
+          ctx.font='700 10px system-ui';ctx.fillStyle='#81C784';ctx.fillText('持有:'+owned,tx3,ty3+40);
+          // buy more
+          gCard(tx3-30,ty3+42,60,10,5,'rgba(33,150,243,.15)',null);
+          ctx.font='9px system-ui';ctx.fillStyle='#90CAF9';ctx.fillText('再买 🪙'+tier.price,tx3,ty3+50);
+        }else{
+          ctx.font='700 11px system-ui';ctx.fillStyle='#FFD740';ctx.fillText('🪙'+tier.price,tx3,ty3+40);
+          gCard(tx3-30,ty3+42,60,10,5,'rgba(33,150,243,.2)',null);
+          ctx.font='9px system-ui';ctx.fillStyle='#90CAF9';ctx.fillText('购 买',tx3,ty3+50);
+        }
+      });
     });
-  }else if(shopTab===1){// effects
+  }else if(growthTab===1){// effects
     SHOP_EFFECTS.forEach((eff,i)=>{
-      const ey=listY+i*78,owned=hasItem('effect',eff.id),equipped=G.effect===eff.id;
-      gCard(16,ey,W-32,68,12,equipped?'rgba(255,255,255,.14)':'rgba(255,255,255,.07)',equipped?'rgba(255,255,255,.3)':null);
-      // color dot
-      ctx.fillStyle=eff.color;ctx.beginPath();ctx.arc(42,ey+22,10,0,6.28);ctx.fill();
-      ctx.font='700 14px system-ui';ctx.fillStyle=equipped?eff.color:'#fff';ctx.textAlign='left';ctx.fillText(eff.name,62,ey+20);
-      ctx.font='11px system-ui';ctx.fillStyle='rgba(180,200,220,.7)';ctx.fillText(eff.desc,62,ey+36);
+      const ey=listY+i*76,owned=hasItem('effect',eff.id),equipped=G.effect===eff.id;
+      gCard(16,ey,W-32,66,12,equipped?'rgba(255,255,255,.14)':'rgba(255,255,255,.07)',equipped?'rgba(255,255,255,.3)':null);
+      ctx.fillStyle=eff.color;ctx.beginPath();ctx.arc(40,ey+20,9,0,6.28);ctx.fill();
+      ctx.font='700 14px system-ui';ctx.fillStyle=equipped?eff.color:'#fff';ctx.textAlign='left';ctx.fillText(eff.name,58,ey+18);
+      ctx.font='11px system-ui';ctx.fillStyle='rgba(180,200,220,.7)';ctx.fillText(eff.desc,58,ey+33);
       if(owned){
-        const eqLbl=equipped?'已装备':'装备';
-        gCard(W-108,ey+44,90,20,10,equipped?'rgba(100,200,100,.2)':'rgba(255,255,255,.1)',null);
-        ctx.font='700 11px system-ui';ctx.fillStyle=equipped?'#81C784':'#ccc';ctx.textAlign='center';ctx.fillText(eqLbl,W-63,ey+57);
+        const eqLbl=equipped?'✓ 已装备':'装 备';
+        gCard(W-110,ey+40,88,20,10,equipped?'rgba(100,200,100,.2)':'rgba(255,255,255,.1)',null);
+        ctx.font='700 11px system-ui';ctx.fillStyle=equipped?'#81C784':'#ccc';ctx.textAlign='center';ctx.fillText(eqLbl,W-66,ey+53);
       }else if(eff.price>0){
-        ctx.font='700 13px system-ui';ctx.fillStyle='#FFD740';ctx.textAlign='right';ctx.fillText('🪙 '+eff.price,W-22,ey+22);
-        gCard(W-108,ey+44,90,20,10,'rgba(33,150,243,.2)',null);
-        ctx.font='700 11px system-ui';ctx.fillStyle='#90CAF9';ctx.textAlign='center';ctx.fillText('购买',W-63,ey+57);
+        ctx.font='700 13px system-ui';ctx.fillStyle='#FFD740';ctx.textAlign='right';ctx.fillText('🪙 '+eff.price,W-20,ey+20);
+        gCard(W-110,ey+40,88,20,10,'rgba(33,150,243,.2)',null);
+        ctx.font='700 11px system-ui';ctx.fillStyle='#90CAF9';ctx.textAlign='center';ctx.fillText('购 买',W-66,ey+53);
       }
     });
-  }else{// skins tab
+  }else{// skins
     SK.forEach((sk,i)=>{
       const sy=listY+Math.floor(i/2)*90,sx=i%2===0?W/4:W*3/4,owned=hasItem('skin',i),equipped=G.skin===i;
       ctx.save();ctx.translate(sx,sy+20);ctx.scale(.45,.45);
-      // mini card bg
       ctx.fillStyle=equipped?'rgba(255,255,255,.15)':'rgba(255,255,255,.07)';ctx.beginPath();ctx.roundRect(-50,-40,100,80,10);ctx.fill();
       if(equipped){ctx.strokeStyle=sk.accent;ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(-50,-40,100,80,10);ctx.stroke();}
       ctx.beginPath();ctx.roundRect(-50,-40,100,80,10);ctx.clip();
@@ -760,7 +885,7 @@ function dShop(t){
       ctx.restore();
       ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillStyle=equipped?sk.accent:'#ccc';ctx.fillText(sk.name,sx,sy+66);
       if(!owned&&sk.price>0){ctx.fillStyle='#FFD740';ctx.font='10px system-ui';ctx.fillText('🪙'+sk.price,sx,sy+80);}
-      else if(owned||sk.price===0){ctx.fillStyle='#81C784';ctx.font='10px system-ui';ctx.fillText(sk.price===0?'免费':'已解锁',sx,sy+80);}
+      else{ctx.fillStyle='#81C784';ctx.font='10px system-ui';ctx.fillText(sk.price===0?'免费':'已解锁',sx,sy+80);}
     });
   }
   btn(W/2,H-46,200,40,'返回主页','rgba(255,255,255,.1)','#ccc');
@@ -777,13 +902,15 @@ function dReady(t){
   ctx.shadowBlur=0;ctx.restore();
   // equipped items preview
   const eqY=H/2-8;
-  if(G.equippedShield){gCard(W/2-70,eqY,60,26,13,'rgba(66,165,245,.2)',null);tx('🛡 护盾',W/2-40,eqY+17,12,'#90CAF9','700');}
-  if(G.equippedHourglass){gCard(W/2+10,eqY,80,26,13,'rgba(255,180,0,.2)',null);tx('⏳ 沙漏',W/2+50,eqY+17,12,'#FFD740','700');}
+  if(G.equippedShieldHits>0){gCard(W/2-95,eqY,80,26,13,'rgba(66,165,245,.2)',null);tx(`🛡 ×${G.equippedShieldHits}`,W/2-55,eqY+17,12,'#90CAF9','700');}
+  if(G.equippedShrinkDur>0){gCard(W/2-5,eqY,80,26,13,'rgba(200,100,255,.2)',null);tx(`🔮 ${G.equippedShrinkDur}s`,W/2+35,eqY+17,12,'#CE93D8','700');}
+  if(G.equippedGapDur>0){gCard(W/2+85,eqY,78,26,13,'rgba(128,203,196,.2)',null);tx(`↔ ${G.equippedGapDur}s`,W/2+124,eqY+17,12,'#80CBC4','700');}
+  if(G.equippedMagnetDur>0){gCard(W/2-95,eqY+32,80,26,13,'rgba(255,183,77,.2)',null);tx(`🧲 ${G.equippedMagnetDur}s`,W/2-55,eqY+49,12,'#FFB74D','700');}
   const pulse=.52+Math.sin(readyT*4)*.48;
   ctx.globalAlpha=pulse;ctx.save();ctx.shadowColor='#fff';ctx.shadowBlur=8;
   tx('点击 / 空格  起飞！',W/2,H/2+60,20,'#fff','700');
   ctx.restore();ctx.globalAlpha=1;
-  tx('每 5 个障碍升一级  · 共 10 级',W/2,H/2+88,12,'rgba(170,210,255,.65)');
+  tx('每 5 个障碍升一级  · 共 20 级',W/2,H/2+88,12,'rgba(170,210,255,.65)');
 }
 
 function dPlay(t){
@@ -792,15 +919,17 @@ function dPlay(t){
   ctx.save();ctx.translate(sx,sy);
   dSky(lv);dStars();dMtns(lv);dClouds();
   if(Math.abs(windF)>18){ctx.globalAlpha=Math.min(1,Math.abs(windF)/90)*.7;tx('风 '+(windF>0?'↓':'↑'),W-42,72,13,'#90CAF9');ctx.globalAlpha=1;}
-  // hourglass overlay tint
-  if(G.hourglassActive){ctx.fillStyle='rgba(255,180,0,.05)';ctx.fillRect(0,0,W,H);}
+  // shrink tint overlay
+  if(G.shrinkActive){ctx.fillStyle='rgba(200,100,255,.04)';ctx.fillRect(0,0,W,H);}
   HARNESS.run('weatherSystem',()=>drawWeather());
   pipes.forEach(dPipe);coinList.forEach(dCoin);
   drawTrailParticles();
   bird.trail.forEach((tr,i)=>{const a=Math.max(0,tr.l)*.16*(1-i/14);if(a>.01){ctx.globalAlpha=a;circ(tr.x,tr.y,BR*.5*(1-i/14),SK[G.skin].glow);ctx.globalAlpha=1;}});
   ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(bird.alive?bird.ang:Math.min(bird.ang+.06,1.5));
+  const birdScale=HARNESS.birdShrink&&G.shrinkActive?0.7:1.0;
+  ctx.scale(birdScale,birdScale);
   SK[G.skin].draw(0,0,bird.wa,bird.blink,t);ctx.restore();
-  dShieldHUD();dParts();dGround();dPlayHUD(lv);dBanner();dHourglassBtn();
+  dShieldHUD();dParts();dGround();dPlayHUD(lv);dBanner();dSkillBtns();
   ctx.restore();
   if(G.flash>0){ctx.globalAlpha=G.flash;ctx.fillStyle=G.flashC;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;}
 }
@@ -902,55 +1031,57 @@ function tap(ex,ey){
   const rect=cv.getBoundingClientRect(),s=parseFloat(cv.style.width)/W;
   const cx=(ex-rect.left)/s,cy=(ey-rect.top)/s;
   if(G.scene==='menu'){
-    if(H$(cx,cy,W/2,388,220,52)){G.skin=skPrev;startGame();}
+    if(H$(cx,cy,W/2,388,220,52)){loadEquippedItems();G.skin=skPrev;startGame();}
     else if(H$(cx,cy,W/2-62,452,110,44)){skPrev=G.skin;G.scene='skinSelect';}
-    else if(H$(cx,cy,W/2+62,452,110,44)){shopTab=0;G.scene='shop';}
+    else if(H$(cx,cy,W/2+62,452,110,44)){growthTab=0;G.scene='growth';}
     else if(H$(cx,cy,W/2,506,220,40)){G.scene='leaderboard';}
   }
   else if(G.scene==='skinSelect'){
     if(H$(cx,cy,W/2,H-66,220,48)){
       if(hasItem('skin',skPrev)){G.skin=skPrev;PL.equip.skin=skPrev;savePlayer(PL);G.scene='menu';}
-      else{// try purchase
-        const sk=SK[skPrev];if(spendCoins(sk.price)){unlockItem('skin',skPrev);PL=getPlayer();G.skin=skPrev;PL.equip.skin=skPrev;savePlayer(PL);G.flash=.15;G.flashC=sk.accent;G.scene='menu';}
-        else{G.flash=.2;G.flashC='#ff3030';}
-      }
+      else{const sk=SK[skPrev];if(spendCoins(sk.price)){unlockItem('skin',skPrev);PL=getPlayer();G.skin=skPrev;PL.equip.skin=skPrev;savePlayer(PL);G.flash=.15;G.flashC=sk.accent;G.scene='menu';}
+        else{G.flash=.2;G.flashC='#ff3030';}}
     }
     else if(cy>H-26&&cy<H){G.scene='menu';}
     else if(cx<W/3&&skPrev>0)skPrev--;
     else if(cx>W*2/3&&skPrev<SK.length-1)skPrev++;
   }
-  else if(G.scene==='shop'){
+  else if(G.scene==='growth'){
     // tabs
-    if(H$(cx,cy,W/2-115,105,88,30))shopTab=0;
-    else if(H$(cx,cy,W/2,105,88,30))shopTab=1;
-    else if(H$(cx,cy,W/2+115,105,88,30))shopTab=2;
-    // items tab
-    else if(shopTab===0){
-      SHOP_ITEMS.forEach((item,i)=>{
-        const iy=134+i*88;
-        if(item.tag!=='soon'&&H$(cx,cy,W-61,iy+63,88,20)){
-          if(spendCoins(item.price)){unlockItem('item',item.id);PL=getPlayer();G.flash=.12;G.flashC='#90CAF9';}
-          else{G.flash=.2;G.flashC='#ff3030';}
-        }
+    if(H$(cx,cy,W/2-115,100,88,28))growthTab=0;
+    else if(H$(cx,cy,W/2,100,88,28))growthTab=1;
+    else if(H$(cx,cy,W/2+115,100,88,28))growthTab=2;
+    // skills tab
+    else if(growthTab===0){
+      GROWTH_SKILLS.forEach((skill,si)=>{
+        const sy=124+si*116;
+        skill.tiers.forEach((tier,ti)=>{
+          const tx3=48+ti*110,ty3=sy+48+42;// buy button area y
+          const itemId=`${skill.id}_t${tier.t}`;
+          if(H$(cx,cy,tx3,ty3,60,10)){
+            if(spendCoins(tier.price)){unlockItem('item',itemId);PL=getPlayer();G.flash=.12;G.flashC=skill.color;}
+            else{G.flash=.2;G.flashC='#ff3030';}
+          }
+        });
       });
     }
     // effects tab
-    else if(shopTab===1){
+    else if(growthTab===1){
       SHOP_EFFECTS.forEach((eff,i)=>{
-        const ey=134+i*78;
+        const ey=124+i*76;
         if(hasItem('effect',eff.id)){
-          if(H$(cx,cy,W-63,ey+54,90,20)){G.effect=eff.id;PL.equip.effect=eff.id;savePlayer(PL);}
-        }else if(eff.price>0&&H$(cx,cy,W-63,ey+54,90,20)){
+          if(H$(cx,cy,W-66,ey+50,88,20)){G.effect=eff.id;PL.equip.effect=eff.id;savePlayer(PL);}
+        }else if(eff.price>0&&H$(cx,cy,W-66,ey+50,88,20)){
           if(spendCoins(eff.price)){unlockItem('effect',eff.id);PL=getPlayer();G.flash=.12;G.flashC=eff.color;}
           else{G.flash=.2;G.flashC='#ff3030';}
         }
       });
     }
-    // skins tab in shop — just navigate to skinSelect
-    else if(shopTab===2){
+    // skins tab — navigate to skinSelect
+    else if(growthTab===2){
       SK.forEach((sk,i)=>{
-        const sy2=134+Math.floor(i/2)*90,sx2=i%2===0?W/4:W*3/4;
-        if(H$(cx,cy,sx2,sy2+40,80,80)){skPrev=i;G.scene='skinSelect';}
+        const sy=124+Math.floor(i/2)*90,sx=i%2===0?W/4:W*3/4;
+        if(H$(cx,cy,sx,sy+40,80,80)){skPrev=i;G.scene='skinSelect';}
       });
     }
     if(H$(cx,cy,W/2,H-46,200,40))G.scene='menu';
@@ -958,19 +1089,29 @@ function tap(ex,ey){
   else if(G.scene==='ready'){bird.vy=-525;burst(bird.x-8,bird.y+8,SK[G.skin].glow,4,42);G.scene='playing';}
   else if(G.scene==='playing'){
     if(bird.alive){
-      // check hourglass button
-      const bx=W-46,by=H-GND-58;
-      if(G.equippedHourglass&&!G.hourglassActive&&H$(cx,cy,bx,by,44,44)){
-        G.hourglassActive=true;G.hourglassTimer=15;G.speedMult=0.6;
-        G.equippedHourglass=false;// consumed
-        G.flash=.1;G.flashC='#FFB74D';
-      }else{bird.vy=-525;bird.wa=-.42;burst(bird.x-8,bird.y+8,SK[G.skin].glow,4,42);}
+      let skillTapped=false;
+      // shrink button (bottom-right, r=22)
+      if(G.equippedShrinkDur>0&&!G.shrinkActive&&H$(cx,cy,W-46,H-GND-58,44,44)){
+        G.shrinkActive=true;G.shrinkTimer=G.equippedShrinkDur;G.equippedShrinkDur=0;
+        G.flash=.1;G.flashC='#CE93D8';skillTapped=true;
+      }
+      // gap button
+      if(G.equippedGapDur>0&&!G.gapActive&&H$(cx,cy,W-46,H-GND-112,40,40)){
+        G.gapActive=true;G.gapTimer=G.equippedGapDur;G.equippedGapDur=0;
+        G.flash=.1;G.flashC='#80CBC4';skillTapped=true;
+      }
+      // magnet button
+      if(G.equippedMagnetDur>0&&!G.magnetActive&&H$(cx,cy,W-46,H-GND-160,40,40)){
+        G.magnetActive=true;G.magnetTimer=G.equippedMagnetDur;G.equippedMagnetDur=0;
+        G.flash=.1;G.flashC='#FFB74D';skillTapped=true;
+      }
+      if(!skillTapped){bird.vy=-525;bird.wa=-.42;burst(bird.x-8,bird.y+8,SK[G.skin].glow,4,42);}
     }
   }
   else if(G.scene==='gameOver'){
     if(H$(cx,cy,W/2,418,230,54))startGame();
     else if(H$(cx,cy,W/2-62,482,106,42)){skPrev=G.skin;G.scene='skinSelect';}
-    else if(H$(cx,cy,W/2+62,482,106,42)){shopTab=0;G.scene='shop';}
+    else if(H$(cx,cy,W/2+62,482,106,42)){growthTab=0;G.scene='growth';}
     else if(H$(cx,cy,W/2,534,230,38))G.scene='menu';
   }
   else if(G.scene==='leaderboard'){
@@ -1011,8 +1152,18 @@ function lerpC(c1,c2,t){
 // ── Pre-game: equip items from inventory ─────────────
 function loadEquippedItems(){
   PL=getPlayer();
-  G.equippedShield=(PL.inventory.items['shield']||0)>0;
-  G.equippedHourglass=(PL.inventory.items['hourglass']||0)>0;
+  // Shield: find highest owned tier
+  const shieldTier=PL.inventory.items['shield_t3']>0?3:PL.inventory.items['shield_t2']>0?2:PL.inventory.items['shield_t1']>0?1:0;
+  G.equippedShieldHits=shieldTier;
+  // Shrink: find highest owned tier
+  const shrinkTier=PL.inventory.items['shrink_t3']>0?3:PL.inventory.items['shrink_t2']>0?2:PL.inventory.items['shrink_t1']>0?1:0;
+  G.equippedShrinkDur=shrinkTier===3?20:shrinkTier===2?15:shrinkTier===1?10:0;
+  // Gap expander: find highest owned tier
+  const gapTier=PL.inventory.items['gap_t3']>0?3:PL.inventory.items['gap_t2']>0?2:PL.inventory.items['gap_t1']>0?1:0;
+  G.equippedGapDur=gapTier===3?20:gapTier===2?14:gapTier===1?8:0;
+  // Coin magnet: find highest owned tier
+  const magTier=PL.inventory.items['magnet_t3']>0?3:PL.inventory.items['magnet_t2']>0?2:PL.inventory.items['magnet_t1']>0?1:0;
+  G.equippedMagnetDur=magTier===3?30:magTier===2?20:magTier===1?12:0;
   G.skin=PL.equip.skin||0;
   G.effect=PL.equip.effect||0;
   skPrev=G.skin;
