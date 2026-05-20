@@ -40,7 +40,7 @@ const DIFF=[
 const getLv=s=>Math.min(20,Math.floor(s/5)+1);
 const D=s=>DIFF[getLv(s)-1];
 const GND=64,BR=19,PW=62,PCAP=11;
-const VERSION='v0.2';
+const VERSION='v0.21';
 // ── Harness: feature flags + auto-disable on error ───
 const HARNESS={
   versionDisplay:true,pipeThemes:true,gateEffect:true,weatherSystem:true,
@@ -156,7 +156,7 @@ const SK=[
 // ── 0 经典黄鸟 (Free) ────────────────────────────────
 {name:'经典黄鸟',desc:'鸟中战斗鸟',accent:'#FFD740',glow:'rgba(255,210,0,.5)',price:0,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);
   c.shadowColor='rgba(255,180,0,.4)';c.shadowBlur=20;
   c.lineCap='round';
   [[-0.22,-4],[0,-1],[0.22,2]].forEach(([a,oy])=>{c.save();c.rotate(a*.5);c.beginPath();c.moveTo(16,oy);c.bezierCurveTo(22,oy-1,27,oy+a*10,32,oy+a*14);c.strokeStyle=a===0?'#E65100':'#BF360C';c.lineWidth=a===0?5.5:3.5;c.stroke();c.restore();});
@@ -178,7 +178,7 @@ const SK=[
 // ── 1 赛博机甲 (Free) ────────────────────────────────
 {name:'赛博机甲',desc:'钢铁之翼不惧风暴',accent:'#40C4FF',glow:'rgba(0,196,255,.5)',price:0,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(0,200,255,.55)';c.shadowBlur=22;
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);c.shadowColor='rgba(0,200,255,.55)';c.shadowBlur=22;
   c.save();c.translate(20,2);const ef=c.createLinearGradient(0,0,18,0);ef.addColorStop(0,'rgba(0,200,255,.85)');ef.addColorStop(.5,'rgba(100,220,255,.4)');ef.addColorStop(1,'rgba(0,200,255,0)');c.fillStyle=ef;const ex2=Math.sin(t*9)*3;c.beginPath();c.moveTo(0,-5);c.lineTo(16+ex2,0);c.lineTo(0,5);c.closePath();c.fill();c.fillStyle='rgba(255,255,255,.6)';c.beginPath();c.moveTo(0,-2);c.lineTo(6,0);c.lineTo(0,2);c.closePath();c.fill();c.restore();
   c.save();c.rotate(wa*.55);c.beginPath();c.moveTo(4,5);c.lineTo(20,11);c.lineTo(24,3);c.lineTo(16,-5);c.lineTo(4,-1);c.closePath();const wpg=c.createLinearGradient(4,5,24,3);wpg.addColorStop(0,'#1565C0');wpg.addColorStop(1,'#0D47A1');c.fillStyle=wpg;c.fill();c.strokeStyle='rgba(100,200,255,.35)';c.lineWidth=1;c.stroke();c.restore();
   c.beginPath();c.moveTo(-17,1);c.lineTo(-10,-17);c.lineTo(7,-21);c.lineTo(20,-11);c.lineTo(21,4);c.lineTo(11,17);c.lineTo(-5,17);c.lineTo(-17,9);c.closePath();const bbg=c.createLinearGradient(-17,-21,21,17);bbg.addColorStop(0,'#1E88E5');bbg.addColorStop(.5,'#1565C0');bbg.addColorStop(1,'#0D47A1');c.fillStyle=bbg;c.fill();c.strokeStyle='rgba(100,200,255,.25)';c.lineWidth=1.5;c.stroke();
@@ -190,7 +190,7 @@ const SK=[
 // ── 2 幽灵精灵 (Free) ────────────────────────────────
 {name:'幽灵精灵',desc:'虚空来客飞行无声',accent:'#69FF47',glow:'rgba(100,255,60,.5)',price:0,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(100,255,60,.6)';c.shadowBlur=26;
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);c.shadowColor='rgba(100,255,60,.6)';c.shadowBlur=26;
   const aura=c.createRadialGradient(0,0,4,0,0,30);aura.addColorStop(0,'rgba(100,255,60,.18)');aura.addColorStop(1,'transparent');c.fillStyle=aura;c.beginPath();c.arc(0,0,30,0,6.28);c.fill();
   for(let i=4;i>=0;i--){const ph=t*3.2+i*1.4,al=.55-i*.08;c.save();c.beginPath();c.moveTo(15,1+i*2-5);c.bezierCurveTo(20+Math.sin(ph)*5,2+i*3-7,26+Math.cos(ph+1)*5,1+i*4-7+Math.sin(ph)*5,31+Math.sin(ph*1.4)*4,(i-2)*9+Math.cos(ph)*6);const wc=c.createLinearGradient(15,0,31,0);wc.addColorStop(0,`rgba(100,255,60,${al})`);wc.addColorStop(1,'rgba(100,255,60,0)');c.strokeStyle=wc;c.lineWidth=3.8-i*.55;c.lineCap='round';c.stroke();c.restore();}
   c.save();c.rotate(wa*.75);c.beginPath();c.moveTo(4,8);c.bezierCurveTo(-2,18,13,24,19,15);c.bezierCurveTo(24,8,17,-2,7,2);c.bezierCurveTo(5,4,4,6,4,8);c.closePath();const wg=c.createLinearGradient(4,8,19,15);wg.addColorStop(0,'rgba(100,255,60,.7)');wg.addColorStop(1,'rgba(50,180,30,.3)');c.fillStyle=wg;c.fill();c.restore();
@@ -201,7 +201,7 @@ const SK=[
 // ── 3 深海精灵 (Free) ────────────────────────────────
 {name:'深海精灵',desc:'来自深渊的萤光使者',accent:'#00E5FF',glow:'rgba(0,229,255,.5)',price:0,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(0,220,255,.6)';c.shadowBlur=28;
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);c.shadowColor='rgba(0,220,255,.6)';c.shadowBlur=28;
   for(let i=0;i<4;i++){const ph=t*2+i*1.8;c.globalAlpha=Math.max(0,.6-i*.12);c.strokeStyle='rgba(0,220,255,.7)';c.lineWidth=1;c.beginPath();c.arc(18+Math.sin(ph)*5+i*6,Math.sin(ph*1.3)*4,2+i*.5,0,6.28);c.stroke();}c.globalAlpha=1;
   c.save();c.rotate(wa*.4);c.beginPath();c.moveTo(-2,-18);c.bezierCurveTo(5,-28,12,-26,15,-18);c.bezierCurveTo(10,-18,2,-18,-2,-18);c.closePath();const dfg=c.createLinearGradient(-2,-28,15,-18);dfg.addColorStop(0,'rgba(0,200,255,.7)');dfg.addColorStop(1,'rgba(0,100,200,.4)');c.fillStyle=dfg;c.fill();c.restore();
   c.save();c.rotate(wa);c.beginPath();c.moveTo(4,6);c.bezierCurveTo(0,16,16,22,20,14);c.bezierCurveTo(22,8,16,2,8,3);c.bezierCurveTo(6,4,4,5,4,6);c.closePath();const pfg=c.createLinearGradient(4,6,20,14);pfg.addColorStop(0,'rgba(0,220,255,.65)');pfg.addColorStop(1,'rgba(0,100,200,.35)');c.fillStyle=pfg;c.fill();c.restore();
@@ -213,7 +213,7 @@ const SK=[
 // ── 4 烈焰凤凰 (Free) ────────────────────────────────
 {name:'烈焰凤凰',desc:'传说中永生的火焰战神',accent:'#FF6D00',glow:'rgba(255,110,0,.55)',price:0,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(255,120,0,.6)';c.shadowBlur=28;
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);c.shadowColor='rgba(255,120,0,.6)';c.shadowBlur=28;
   for(let i=3;i>=0;i--){const ph=t*4+i*.8;c.save();c.translate(18,0);const fg=c.createLinearGradient(0,0,12+i*5,0);fg.addColorStop(0,`rgba(255,${60+i*40},0,.85)`);fg.addColorStop(.5,`rgba(255,${160+i*20},0,.5)`);fg.addColorStop(1,'rgba(255,200,0,0)');c.strokeStyle=fg;c.lineWidth=4-i*.5;c.lineCap='round';c.beginPath();c.moveTo(0,(i-1.5)*5);c.bezierCurveTo(6+Math.sin(ph)*3,(i-1.5)*5+Math.cos(ph)*4,10+Math.sin(ph*1.3)*4,(i-1.5)*6+Math.sin(ph*.7)*5,14+i*4+Math.sin(ph)*3,(i-1.5)*8+Math.cos(ph*1.1)*6);c.stroke();c.restore();}
   c.save();c.rotate(wa*.7);c.beginPath();c.moveTo(-2,-8);c.bezierCurveTo(-8,-20,8,-26,20,-16);c.bezierCurveTo(26,-10,24,-2,18,2);c.bezierCurveTo(10,6,2,2,-2,-8);c.closePath();const uwg=c.createLinearGradient(-2,-26,20,2);uwg.addColorStop(0,'#FF6F00');uwg.addColorStop(.5,'#FF8F00');uwg.addColorStop(1,'#FFD740');c.fillStyle=uwg;c.fill();c.restore();
   c.save();c.rotate(wa*.4+.3);c.beginPath();c.moveTo(4,6);c.bezierCurveTo(-2,16,14,24,20,16);c.bezierCurveTo(24,10,18,2,8,4);c.closePath();const lwg=c.createLinearGradient(4,6,20,16);lwg.addColorStop(0,'#E65100');lwg.addColorStop(1,'#FF8F00');c.fillStyle=lwg;c.fill();c.restore();
@@ -228,7 +228,7 @@ const SK=[
 // ── 5 星辰骑士 (Premium · 250 coins) ─────────────────
 {name:'星辰骑士',desc:'银河战甲·星光护体',accent:'#CE93D8',glow:'rgba(180,100,255,.55)',price:250,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(160,80,255,.65)';c.shadowBlur=30;
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);c.shadowColor='rgba(160,80,255,.65)';c.shadowBlur=30;
   // star particles orbiting
   for(let i=0;i<6;i++){const a=t*1.8+i*(Math.PI*2/6),r=28+Math.sin(t*2+i)*4;c.save();c.globalAlpha=.55+Math.sin(t*3+i)*.3;c.fillStyle='#E1BEE7';c.beginPath();c.arc(Math.cos(a)*r,Math.sin(a)*r,1.5+Math.sin(t*4+i)*.8,0,6.28);c.fill();c.restore();}
   // cape
@@ -249,7 +249,7 @@ const SK=[
 // ── 6 电磁风暴 (Premium · 400 coins) ─────────────────
 {name:'电磁风暴',desc:'混沌电弧·不灭之核',accent:'#FFFF00',glow:'rgba(255,255,0,.5)',price:400,
  draw(x,y,wa,bl,t){
-  const c=ctx;c.save();c.translate(x,y);c.shadowColor='rgba(200,200,0,.7)';c.shadowBlur=32;
+  const c=ctx;c.save();c.translate(x,y);c.scale(-1,1);c.shadowColor='rgba(200,200,0,.7)';c.shadowBlur=32;
   // electric field
   const ef=c.createRadialGradient(0,0,8,0,0,36);ef.addColorStop(0,'rgba(255,255,100,.1)');ef.addColorStop(.7,'rgba(100,200,255,.06)');ef.addColorStop(1,'transparent');c.fillStyle=ef;c.beginPath();c.arc(0,0,36,0,6.28);c.fill();
   // lightning bolts background
