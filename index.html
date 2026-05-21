@@ -40,7 +40,7 @@ const DIFF=[
 const getLv=s=>Math.min(20,Math.floor(s/5)+1);
 const D=s=>DIFF[getLv(s)-1];
 const GND=64,BR=19,PW=62,PCAP=11;
-const VERSION='v0.21';
+const VERSION='v0.22';
 // ── Harness: feature flags + auto-disable on error ───
 const HARNESS={
   versionDisplay:true,pipeThemes:true,gateEffect:true,weatherSystem:true,
@@ -772,6 +772,7 @@ function dMenu(t){
   btn(W/2-62,452,110,44,'装 扮','#6A1B9A','#fff');
   btn(W/2+62,452,110,44,'成 长','#1B5E20','#fff');
   btn(W/2,506,220,40,'排 行 榜','rgba(255,255,255,.1)','#ccc');
+  btn(W/2,552,220,34,'你不会连20关都没过吧？','#E91E63','#fff');
   if(Math.floor(uiT*2)%2===0)tx('点击 / 空格 开始',W/2,H-20,12,'rgba(150,200,255,.45)');
   HARNESS.run('versionDisplay',()=>{ tx(VERSION,18,H-14,10,'rgba(255,255,255,.22)','400'); });
 }
@@ -1035,6 +1036,12 @@ function tap(ex,ey){
     else if(H$(cx,cy,W/2-62,452,110,44)){skPrev=G.skin;G.scene='skinSelect';}
     else if(H$(cx,cy,W/2+62,452,110,44)){growthTab=0;G.scene='growth';}
     else if(H$(cx,cy,W/2,506,220,40)){G.scene='leaderboard';}
+    else if(H$(cx,cy,W/2,552,220,34)){
+      const code=prompt('你想说什么？','');
+      if(code&&code.trim()==='天王老子来了'){
+        addCoins(888);G.flash=.16;G.flashC='#E91E63';
+      }else if(code!==null){G.flash=.18;G.flashC='#ff3030';}
+    }
   }
   else if(G.scene==='skinSelect'){
     if(H$(cx,cy,W/2,H-66,220,48)){
